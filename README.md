@@ -216,7 +216,7 @@ output {
 To test sending a log to Elasticsearch using curl, run:
 
 ```bash
-curl -u elastic:your_password_here -X POST "http://172.16.20.31:9200/logs/_doc/" -H 'Content-Type: application/json' -d'
+curl -u elastic:your_password_here -X POST "https://172.16.20.31:9200/logs/_doc/" -H 'Content-Type: application/json' -d'
 {
   "@timestamp": "2025-02-24T12:30:00",
   "message": "This is a test log message",
