@@ -1,77 +1,163 @@
-# ELK Stack (Elasticsearch, Logstash, Kibana) Setup on Ubuntu
+# ELK Stack Installation Guide on Ubuntu
 
-This guide provides a complete step-by-step process to set up the **ELK Stack** (Elasticsearch, Logstash, Kibana) on **Ubuntu**, enabling **secure Kibana access** and **remote log collection** without installing additional software on client servers.
+This guide will walk you through installing and configuring the ELK Stack (Elasticsearch, Kibana, and Logstash) on a Linux server.
 
-## 📌 Prerequisites
-- Ubuntu 20.04 or later
-- Root or sudo privileges
-- At least 4GB RAM (Recommended)
+---
 
-## 🚀 Step 1: Install Java (Required for ELK)
+## Prerequisites
+
+- Operating System: Ubuntu 20.04 (or similar versions)
+- Root or sudo user access
+- Internet access to download packages
+
+---
+
+## Installation Steps
+
+### 1. Update System
+
+Start by updating your system:
 
 ```bash
-sudo apt update && sudo apt upgrade -y
+sudo apt update
+sudo apt upgrade -y
+```
+
+### 2. Install Java (OpenJDK 11)
+
+ELK requires Java. Install OpenJDK 11:
+
+```bash
 sudo apt install openjdk-11-jdk -y
 java -version
 ```
 
-## 📊 Step 2: Install and Configure Elasticsearch
+### 3. Install Elasticsearch
 
-### 1. Add Elasticsearch Repository:
+To install Elasticsearch, add the repository and install the package:
 
 ```bash
-wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
-sudo sh -c 'echo "deb https://artifacts.elastic.co/packages/8.x/apt stable main" > /etc/apt/sources.list.d/elastic-8.x.list'
+sudo apt install apt-transport-https ca-certificates curl software-properties-common -y
+curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
+sudo sh -c 'echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" > /etc/apt/sources.list.d/elastic-7.x.list'
 sudo apt update
-```
-
-### 2. Install Elasticsearch:
-
-```bash
 sudo apt install elasticsearch -y
 ```
 
-### 3. Enable Security in Elasticsearch:
-
-```bash
-sudo nano /etc/elasticsearch/elasticsearch.yml
-```
-
-Add the following line:
-
-```yaml
-xpack.security.enabled: true
-```
-
-Save and exit: `CTRL + X` → `Y` → `Enter`
-
-### 4. Start and Enable Elasticsearch:
+Then, enable and start Elasticsearch:
 
 ```bash
 sudo systemctl enable elasticsearch
 sudo systemctl start elasticsearch
 ```
 
-### 5. Set Up User Passwords:
+To check if Elasticsearch is running, use:
+
+```bash
+curl -X GET "localhost:9200/"
+```
+
+### 4. Install Kibana
+
+To install Kibana:
+
+```bash
+sudo apt install kibana -y
+sudo systemctl enable kibana
+sudo systemctl start kibana
+```
+
+Configure Kibana for external access:
+
+```bash
+sudo nano /etc/kibana/kibana.yml
+```
+
+Find and change the following line:
+
+```yaml
+server.host: "0.0.0.0"
+```
+
+Then restart Kibana:
+
+```bash
+sudo systemctl restart kibana
+```
+
+### 5. Install Logstash
+
+To install Logstash:
+
+```bash
+sudo apt install logstash -y
+sudo systemctl enable logstash
+sudo systemctl start logstash
+```
+
+Configure Logstash to receive data over HTTP:
+
+```bash
+sudo nano /etc/logstash/conf.d/logstash-http.conf
+```
+
+Add the following content:
+
+```bash
+input {
+  http {
+    host => "0.0.0.0"
+    port => 5044
+    codec => "json"
+  }
+}
+
+filter {
+
+}
+
+output {
+  elasticsearch {
+    hosts => ["http://localhost:9200"]
+    index => "logs-%{+YYYY.MM.dd}"
+  }
+}
+```
+
+Then restart Logstash:
+
+```bash
+sudo systemctl restart logstash
+```
+
+### 6. Enable X-Pack Security
+
+To enable X-Pack Security for Elasticsearch and Kibana, do the following:
+
+```bash
+sudo nano /etc/elasticsearch/elasticsearch.yml
+```
+
+Add the following lines to enable security:
+
+```yaml
+xpack.security.enabled: true
+xpack.security.authc.realms.file.file1.enabled: true
+```
+
+Then restart Elasticsearch:
+
+```bash
+sudo systemctl restart elasticsearch
+```
+
+Run the setup password command for Elasticsearch:
 
 ```bash
 sudo /usr/share/elasticsearch/bin/elasticsearch-setup-passwords interactive
 ```
 
-Set passwords for the following users:
-
-- **elastic**: AdminPass123
-- **kibana_system**: KibanaPass456
-
-## 📈 Step 3: Install and Configure Kibana
-
-### 1. Install Kibana:
-
-```bash
-sudo apt install kibana -y
-```
-
-### 2. Configure Kibana Authentication:
+Next, configure Kibana to use the credentials:
 
 ```bash
 sudo nano /etc/kibana/kibana.yml
@@ -80,124 +166,74 @@ sudo nano /etc/kibana/kibana.yml
 Add the following lines:
 
 ```yaml
-elasticsearch.username: "kibana_system"
-elasticsearch.password: "KibanaPass456"
+elasticsearch.username: "elastic"
+elasticsearch.password: "your_password_here"
 xpack.security.enabled: true
-server.host: "0.0.0.0"
 ```
 
-Save and exit: `CTRL + X` → `Y` → `Enter`
-
-### 3. Start and Enable Kibana:
+Restart Kibana:
 
 ```bash
-sudo systemctl enable kibana
 sudo systemctl restart kibana
 ```
 
-## 📊 Step 4: Install and Configure Logstash
+### 7. Configure Logstash for Authentication
 
-### 1. Install Logstash:
-
-```bash
-sudo apt install logstash -y
-```
-
-### 2. Configure Logstash for UDP Syslog Input:
+Configure Logstash to authenticate when sending logs to Elasticsearch:
 
 ```bash
-sudo nano /etc/logstash/conf.d/syslog.conf
+sudo nano /etc/logstash/conf.d/your-logstash-config.conf
 ```
 
-Add the following configuration:
+Use the following configuration for Logstash:
 
-```yaml
-input {
-  udp {
-    port => 514
-    type => "syslog"
-  }
-}
-
+```bash
 output {
   elasticsearch {
-    hosts => ["http://localhost:9200"]
+    hosts => ["https://your-elasticsearch-ip:9200"]
     user => "elastic"
-    password => "AdminPass123"
-    index => "syslog-%{+YYYY.MM.dd}"
+    password => "your_password_here"
+    ssl => true
+    cacert => '/etc/elasticsearch/certs/your-certificate.pem'
   }
 }
 ```
 
-Save and exit: `CTRL + X` → `Y` → `Enter`
-
-### 3. Start and Enable Logstash:
+Alternatively, you can use:
 
 ```bash
-sudo systemctl enable logstash
-sudo systemctl restart logstash
+output {
+  elasticsearch {
+    hosts => ["http://172.16.20.31:9200"]
+    user => "elastic"
+    password => "your_password_here"
+  }
+}
 ```
 
-Check the status to verify:
+### 8. Test Log Sending
+
+To test sending a log to Elasticsearch using curl, run:
 
 ```bash
-sudo systemctl status logstash
+curl -u elastic:your_password_here -X POST "http://172.16.20.31:9200/logs/_doc/" -H 'Content-Type: application/json' -d'
+{
+  "@timestamp": "2025-02-24T12:30:00",
+  "message": "This is a test log message",
+  "host": "log-server",
+  "severity": "info"
+}'
 ```
 
-## 📥 Step 5: Configure Remote Log Sending (Client Servers)
-
-### 1. Edit `rsyslog` Configuration on Client Server:
+Alternatively:
 
 ```bash
-sudo nano /etc/rsyslog.conf
+curl -u elastic:your_password_here -X POST "http://172.16.20.31:9200/logs/_doc/" -H 'Content-Type: application/json' -d'
+{
+  "@timestamp": "2025-02-24T12:30:00",
+  "message": "This is a test log message",
+  "host": "log-server",
+  "severity": "info"
+}'
 ```
-
-Find and add this line at the end:
-
-```bash
-*.* @ELK-SERVER-IP:514
-```
-
-Replace `ELK-SERVER-IP` with the IP address of your ELK server.
-
-### 2. Restart `rsyslog` on Client Server:
-
-```bash
-sudo systemctl restart rsyslog
-```
-
-## 🔍 Step 6: Access Kibana and View Logs
-
-1. Open your browser and visit:
-
-```
-http://YOUR_ELK_SERVER_IP:5601
-```
-
-2. Log in using the credentials:
-
-- **Username:** elastic
-- **Password:** AdminPass123
-
-### Create an Index Pattern:
-
-1. Navigate to **Management** > **Index Patterns**.
-2. Create a new index pattern: `syslog-*`
-3. Confirm and save.
-
-## 🔒 Step 7: Ensure Services Start on Boot
-
-Enable all services to start automatically:
-
-```bash
-sudo systemctl enable elasticsearch kibana logstash
-```
-
-## ✅ Final Setup Summary
-
-- **ELK Stack** is fully installed and secured with username and password.
-- **Kibana** is protected and accessible via login.
-- **Client servers** send logs without installing additional software.
-
-Enjoy real-time monitoring and log analysis! 🎉
 
