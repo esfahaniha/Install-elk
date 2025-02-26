@@ -145,7 +145,6 @@ Add the following lines to enable security:
 
 ```yaml
 xpack.security.enabled: true
-xpack.security.authc.realms.file.file1.enabled: true
 ```
 
 Then restart Elasticsearch:
