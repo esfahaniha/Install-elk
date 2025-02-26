@@ -77,6 +77,9 @@ Find and change the following line:
 
 ```yaml
 server.host: "0.0.0.0"
+elasticsearch.username: "elastic"
+elasticsearch.password: "elastic_password"
+xpack.security.enabled: true
 ```
 
 Then restart Kibana:
