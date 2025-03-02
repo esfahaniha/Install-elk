@@ -1,176 +1,68 @@
-# ELK Stack Installation Guide on Ubuntu
-
-This guide will walk you through installing and configuring the ELK Stack (Elasticsearch, Kibana, and Logstash) on a Linux server.
-
----
+# ELK Stack Installation and Configuration Guide
 
 ## Prerequisites
 
-- Operating System: Ubuntu 20.04 (or similar versions)
-- Root or sudo user access
-- Internet access to download packages
+- A Linux-based server (Ubuntu 20.04 recommended)
+- At least 4GB RAM
+- OpenJDK 11 installed
 
----
-
-## Installation Steps
-
-### 1. Update System
-
-Start by updating your system:
+## Step 1: Install Elasticsearch
 
 ```bash
-sudo apt update
-sudo apt upgrade -y
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.17.2-amd64.deb
+sudo dpkg -i elasticsearch-8.17.2-amd64.deb
+sudo systemctl enable --now elasticsearch
 ```
 
-### 2. Install Java (OpenJDK 11)
+### Configure Elasticsearch
 
-ELK requires Java. Install OpenJDK 11:
-
-```bash
-sudo apt install openjdk-11-jdk -y
-java -version
-```
-
-### 3. Install Elasticsearch
-
-To install Elasticsearch, add the repository and install the package:
-
-```bash
-sudo apt install apt-transport-https ca-certificates curl software-properties-common -y
-curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
-sudo sh -c 'echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" > /etc/apt/sources.list.d/elastic-7.x.list'
-sudo apt update
-sudo apt install elasticsearch -y
-```
-
-Then, enable and start Elasticsearch:
-
-```bash
-sudo systemctl enable elasticsearch
-sudo systemctl start elasticsearch
-```
-
-To check if Elasticsearch is running, use:
-
-```bash
-curl -X GET "localhost:9200/"
-```
-
-### 4. Install Kibana
-
-To install Kibana:
-
-```bash
-sudo apt install kibana -y
-sudo systemctl enable kibana
-sudo systemctl start kibana
-```
-
-Configure Kibana for external access:
-
-```bash
-sudo nano /etc/kibana/kibana.yml
-```
-
-Find and change the following line:
-
-```yaml
-server.host: "0.0.0.0"
-elasticsearch.username: "elastic"
-elasticsearch.password: "elastic_password"
-xpack.security.enabled: true
-```
-
-Then restart Kibana:
-
-```bash
-sudo systemctl restart kibana
-```
-
-### 5. Install Logstash
-
-To install Logstash:
-
-```bash
-sudo apt install logstash -y
-sudo systemctl enable logstash
-sudo systemctl start logstash
-```
-
-Configure Logstash to receive data over HTTP:
-
-```bash
-sudo nano /etc/logstash/conf.d/logstash-http.conf
-```
-
-Add the following content:
-
-```bash
-input {
-  http {
-    host => "0.0.0.0"
-    port => 5044
-    codec => "json"
-  }
-}
-
-filter {
-
-}
-
-output {
-  elasticsearch {
-    hosts => ["http://localhost:9200"]
-    index => "logs-%{+YYYY.MM.dd}"
-  }
-}
-```
-
-Then restart Logstash:
-
-```bash
-sudo systemctl restart logstash
-```
-
-### 6. Enable X-Pack Security
-
-To enable X-Pack Security for Elasticsearch and Kibana, do the following:
+Edit the configuration file:
 
 ```bash
 sudo nano /etc/elasticsearch/elasticsearch.yml
 ```
 
-Add the following lines to enable security:
+Set the following parameters:
 
-```yaml
+```
+network.host: 0.0.0.0
+http.port: 9200
 xpack.security.enabled: true
 ```
 
-Then restart Elasticsearch:
+Restart Elasticsearch:
 
 ```bash
 sudo systemctl restart elasticsearch
 ```
 
-Run the setup password command for Elasticsearch:
+Set a password for `elastic` user:
 
 ```bash
-sudo /usr/share/elasticsearch/bin/elasticsearch-setup-passwords interactive
+sudo /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic
 ```
 
-Next, configure Kibana to use the credentials:
+## Step 2: Install Kibana
+
+```bash
+wget https://artifacts.elastic.co/downloads/kibana/kibana-8.17.2-amd64.deb
+sudo dpkg -i kibana-8.17.2-amd64.deb
+sudo systemctl enable --now kibana
+```
+
+Edit Kibana configuration:
 
 ```bash
 sudo nano /etc/kibana/kibana.yml
 ```
 
-Add the following lines:
+Set:
 
-```yaml
+```
+server.host: "0.0.0.0"
+elasticsearch.hosts: ["https://localhost:9200"]
 elasticsearch.username: "elastic"
 elasticsearch.password: "your_password_here"
-xpack.security.enabled: true
 ```
 
 Restart Kibana:
@@ -179,63 +71,63 @@ Restart Kibana:
 sudo systemctl restart kibana
 ```
 
-### 7. Configure Logstash for Authentication
-
-Configure Logstash to authenticate when sending logs to Elasticsearch:
+## Step 3: Install Logstash
 
 ```bash
-sudo nano /etc/logstash/conf.d/your-logstash-config.conf
+wget https://artifacts.elastic.co/downloads/logstash/logstash-8.17.2-amd64.deb
+sudo dpkg -i logstash-8.17.2-amd64.deb
 ```
 
-Use the following configuration for Logstash:
+Edit Logstash configuration:
 
 ```bash
+sudo nano /etc/logstash/conf.d/logstash.conf
+```
+
+Example configuration:
+
+```
+input {
+  http {
+    port => 5044
+  }
+}
 output {
   elasticsearch {
-    hosts => ["https://your-elasticsearch-ip:9200"]
+    hosts => ["https://localhost:9200"]
     user => "elastic"
     password => "your_password_here"
-    ssl => true
-    cacert => '/etc/elasticsearch/certs/your-certificate.pem'
+    ssl_certificate_verification => false
+    index => "logstash-%{+YYYY.MM.dd}"
   }
 }
 ```
 
-Alternatively, you can use:
+Restart Logstash:
 
 ```bash
-output {
-  elasticsearch {
-    hosts => ["http://172.16.20.31:9200"]
-    user => "elastic"
-    password => "your_password_here"
-  }
-}
+sudo systemctl restart logstash
 ```
 
-### 8. Test Log Sending
+## Step 4: Test Logstash Input
 
-To test sending a log to Elasticsearch using curl, run:
+Send a test log using `curl`:
 
 ```bash
-curl -u elastic:your_password_here -X POST "https://172.16.20.31:9200/logs/_doc/" -H 'Content-Type: application/json' -d'
-{
-  "@timestamp": "2025-02-24T12:30:00",
-  "message": "This is a test log message",
-  "host": "log-server",
-  "severity": "info"
-}'
+curl -X POST "http://localhost:5044" -H "Content-Type: application/json" -d '{"message": "Test log from curl", "level": "INFO", "timestamp": "2025-03-02T12:00:00Z"}'
 ```
 
-Alternatively:
+## Step 5: Verify Logs in Elasticsearch
 
 ```bash
-curl -u elastic:your_password_here -X POST "http://172.16.20.31:9200/logs/_doc/" -H 'Content-Type: application/json' -d'
-{
-  "@timestamp": "2025-02-24T12:30:00",
-  "message": "This is a test log message",
-  "host": "log-server",
-  "severity": "info"
-}'
+curl -X GET -u elastic:your_password_here "https://localhost:9200/logstash-*/_search?pretty=true" -k
 ```
+
+If everything is set up correctly, you should see your test log in the response.
+
+## Step 6: Access Kibana
+
+- Open a browser and go to `http://your_server_ip:5601`
+- Login using `elastic` and the password you set earlier.
+- Navigate to **Discover** to check logs.
 
