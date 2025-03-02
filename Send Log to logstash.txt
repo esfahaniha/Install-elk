@@ -1,0 +1,17 @@
+#!/bin/bash
+
+LOG_FILE="/path/to/your/logfile.log"
+LOGSTASH_URL="http://172.16.20.31:5044"
+HOSTNAME=$(hostname)
+
+# ارسال لاگ به Elasticsearch
+tail -F "$LOG_FILE" | while read line; do
+    curl -X POST "$LOGSTASH_URL" -H "Content-Type: application/json" -d'
+    {
+      "@timestamp": "'$(date --utc +%Y-%m-%dT%H:%M:%S.%3NZ)'",
+      "log": "'"$line"'",
+      "host": "'"$HOSTNAME"'",
+      "application": "your_application_name",
+      "level": "info"
+    }'
+done
