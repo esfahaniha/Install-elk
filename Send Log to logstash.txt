@@ -4,16 +4,22 @@ LOG_FILE="/path/to/your/logfile.log"
 LOGSTASH_URL="http://192.168.11.130:5044"
 LAST_LINE_FILE="/path/to/last_line.txt"
 
+# If the last_line.txt file doesn't exist, create it and initialize it with line 0
 if [ ! -f "$LAST_LINE_FILE" ]; then
   echo "0" > "$LAST_LINE_FILE"
 fi
 
+# Read the last line number that was sent
 LAST_LINE=$(cat "$LAST_LINE_FILE")
 
+# Get the new lines from the log file that haven't been sent yet
 NEW_LINES=$(tail -n +$((LAST_LINE + 1)) "$LOG_FILE")
 
 if [ -n "$NEW_LINES" ]; then
+  # Get the hostname of the server
   HOSTNAME=$(hostname)
+
+  # Loop through each new line and send it to Logstash
   echo "$NEW_LINES" | while read line; do
     curl -X POST "$LOGSTASH_URL" -H "Content-Type: application/json" -d'
     {
@@ -25,6 +31,7 @@ if [ -n "$NEW_LINES" ]; then
     }'
   done
   
+  # Save the line number of the last sent log entry
   NEW_LAST_LINE=$(wc -l < "$LOG_FILE")
   echo "$NEW_LAST_LINE" > "$LAST_LINE_FILE"
 fi
