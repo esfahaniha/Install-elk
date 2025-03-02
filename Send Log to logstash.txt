@@ -1,11 +1,20 @@
 #!/bin/bash
 
 LOG_FILE="/path/to/your/logfile.log"
-LOGSTASH_URL="http://172.16.20.31:5044"
-HOSTNAME=$(hostname)
+LOGSTASH_URL="http://192.168.11.130:5044"
+LAST_LINE_FILE="/path/to/last_line.txt"
 
-# ارسال لاگ به Elasticsearch
-tail -F "$LOG_FILE" | while read line; do
+if [ ! -f "$LAST_LINE_FILE" ]; then
+  echo "0" > "$LAST_LINE_FILE"
+fi
+
+LAST_LINE=$(cat "$LAST_LINE_FILE")
+
+NEW_LINES=$(tail -n +$((LAST_LINE + 1)) "$LOG_FILE")
+
+if [ -n "$NEW_LINES" ]; then
+  HOSTNAME=$(hostname)
+  echo "$NEW_LINES" | while read line; do
     curl -X POST "$LOGSTASH_URL" -H "Content-Type: application/json" -d'
     {
       "@timestamp": "'$(date --utc +%Y-%m-%dT%H:%M:%S.%3NZ)'",
@@ -14,4 +23,8 @@ tail -F "$LOG_FILE" | while read line; do
       "application": "your_application_name",
       "level": "info"
     }'
-done
+  done
+  
+  NEW_LAST_LINE=$(wc -l < "$LOG_FILE")
+  echo "$NEW_LAST_LINE" > "$LAST_LINE_FILE"
+fi
