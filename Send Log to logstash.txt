@@ -11,13 +11,21 @@ tail -F "$LOG_FILE" | while read -r line; do
   # Get the hostname of the server
   HOSTNAME=$(hostname)
 
-  # Send each new line to Logstash with the extracted application name
+  # Extract the log level (assuming it is the first word in square brackets)
+  LOG_LEVEL=$(echo "$line" | grep -oP '^\[\K\w+')
+
+  # Default to "info" if no level is found
+  if [ -z "$LOG_LEVEL" ]; then
+    LOG_LEVEL="info"
+  fi
+
+  # Send each new line to Logstash with the extracted log level
   curl -X POST "$LOGSTASH_URL" -H "Content-Type: application/json" -d'
   {
     "@timestamp": "'$(date --utc +%Y-%m-%dT%H:%M:%S.%3NZ)'",
     "log": "'"$line"'",
     "host": "'"$HOSTNAME"'",
     "application": "'"$APP_NAME"'",
-    "level": "info"
+    "level": "'"$LOG_LEVEL"'"
   }'
 done
